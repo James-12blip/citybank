@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OTP Verification - City Prime Bank</title>
+
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="auth.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+
+<script>
+(function(){
+emailjs.init("xlx20WEQxwkisNBcp");
+})();
+</script>
+
+</head>
+
+<body>
+
+<div class="mobile-container">
+
+<!-- Header -->
+<div class="auth-header">
+<a href="login.html" class="back-btn">
+<i class="fas fa-arrow-left"></i>
+</a>
+
+<div class="auth-logo">
+<i class="fas fa-university"></i>
+<span>City Prime Bank</span>
+</div>
+
+<div class="spacer"></div>
+</div>
+
+<!-- OTP Section -->
+<div class="auth-content">
+
+<div class="auth-icon">
+<i class="fas fa-shield-alt"></i>
+</div>
+
+<h1 class="auth-title">Verify Login</h1>
+<p class="auth-subtitle">Enter the verification code sent to your email</p>
+
+<form id="otpForm" class="auth-form">
+
+<div class="form-group">
+<label class="form-label">Verification Code</label>
+
+<div class="input-wrapper">
+<i class="fas fa-key"></i>
+<input type="text" id="otpInput" maxlength="6" class="form-input" placeholder="Enter 6-digit code" required>
+</div>
+
+</div>
+
+<button type="submit" class="btn btn-primary btn-block">
+<i class="fas fa-check"></i> Verify Code
+</button>
+
+</form>
+
+<!-- RESEND OTP -->
+<div style="margin-top:15px;text-align:center">
+
+<button id="resendBtn" onclick="requestNewOTP()" class="btn btn-secondary btn-block" disabled>
+<i class="fas fa-redo"></i> Request Another OTP
+</button>
+
+<p id="timerText" style="margin-top:8px;font-size:14px;color:#777;">
+Resend available in <span id="countdown">20</span>s
+</p>
+
+</div>
+
+<p class="auth-footer">
+Didn't receive the code? Request another OTP
+</p>
+
+</div>
+
+</div>
+
+<script>
+
+// block direct access
+if(!sessionStorage.getItem("loginOTP")){
+window.location.href="login.html";
+}
+
+// VERIFY OTP
+document.getElementById("otpForm").addEventListener("submit", function(e){
+
+e.preventDefault();
+
+const enteredOTP = document.getElementById("otpInput").value.trim();
+const savedOTP = sessionStorage.getItem("loginOTP");
+
+if(!savedOTP){
+alert("Session expired. Please login again.");
+window.location.href="login.html";
+return;
+}
+
+if(enteredOTP === savedOTP){
+
+sessionStorage.setItem("otpVerified","true");
+
+sessionStorage.removeItem("loginOTP");
+sessionStorage.removeItem("loginEmail");
+
+window.location.href="dashboard.html";
+
+}else{
+
+alert("Invalid verification code");
+
+}
+
+});
+
+
+// =======================
+// RESEND TIMER
+// =======================
+
+let timeLeft = 20;
+const resendBtn = document.getElementById("resendBtn");
+const countdown = document.getElementById("countdown");
+
+const timer = setInterval(()=>{
+
+timeLeft--;
+countdown.textContent = timeLeft;
+
+if(timeLeft <= 0){
+
+clearInterval(timer);
+resendBtn.disabled = false;
+document.getElementById("timerText").innerText = "You can request another OTP";
+
+}
+
+},1000);
+
+
+// =======================
+// REQUEST NEW OTP
+// =======================
+
+function requestNewOTP(){
+
+const email = sessionStorage.getItem("loginEmail");
+
+if(!email){
+alert("Session expired. Please login again.");
+window.location.href="login.html";
+return;
+}
+
+const newOTP = Math.floor(100000 + Math.random() * 900000);
+
+sessionStorage.setItem("loginOTP", newOTP);
+
+// send email
+emailjs.send("service_jinqyga","template_9xua3pk",{
+email: email,
+passcode: newOTP,
+time: "15 minutes"
+})
+.then(function(){
+
+alert("New verification code sent to your email.");
+
+startTimer();
+
+})
+.catch(function(error){
+
+console.log("Email failed:", error);
+alert("Failed to send OTP.");
+
+});
+
+}
+
+
+// =======================
+// RESTART TIMER
+// =======================
+
+function startTimer(){
+
+resendBtn.disabled = true;
+
+timeLeft = 20;
+
+document.getElementById("timerText").innerHTML =
+'Resend available in <span id="countdown">20</span>s';
+
+const newCountdown = document.getElementById("countdown");
+
+const newTimer = setInterval(()=>{
+
+timeLeft--;
+newCountdown.textContent = timeLeft;
+
+if(timeLeft <= 0){
+
+clearInterval(newTimer);
+resendBtn.disabled = false;
+document.getElementById("timerText").innerText = "You can request another OTP";
+
+}
+
+},1000);
+
+}
+
+</script>
+
+</body>
+</html>
