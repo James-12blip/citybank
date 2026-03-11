@@ -13,16 +13,21 @@
 </head>
 <body>
     <div class="mobile-container">
-        <!-- Landing Header -->
-        <header class="landing-header">
-            <div class="logo">
-                <i class="fas fa-university"></i>
-                <span>City Prime Bank</span>
-            </div>
-            <button class="menu-btn" onclick="toggleMenu()">
-                <i class="fas fa-bars"></i>
-            </button>
-        </header>
+    <!-- Landing Header -->
+    <header class="landing-header">
+
+        <div class="logo">
+            <i class="fas fa-university"></i>
+            <span>City Prime Bank</span>
+        </div>
+
+        <div id="google_translate_element" class="translate-box"></div>
+
+        <button class="menu-btn" onclick="toggleMenu()">
+            <i class="fas fa-bars"></i>
+        </button>
+
+    </header>
 
         <!-- Hero Section -->
         <section class="hero">
@@ -342,11 +347,25 @@
         </div>
     </div>
 
-    <script src="firebase-config.js"></script>
-    <script>
-        function toggleMenu() {
-            showToast('Menu coming soon!', 'info');
-        }
-    </script>
+   <script src="firebase-config.js"></script>
+
+<script>
+function toggleMenu() {
+    showToast('Menu coming soon!', 'info');
+}
+</script>
+
+<script>
+function googleTranslateElementInit() {
+  new google.translate.TranslateElement(
+    {
+      pageLanguage: 'en'
+    },
+    'google_translate_element'
+  );
+}
+</script>
+
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
 </html>
