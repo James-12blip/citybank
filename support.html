@@ -7,6 +7,48 @@
     <title>Email Support - City Prime Bank</title>
     <link rel="stylesheet" href="support.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Translator CSS Styles -->
+    <style>
+        .translate-box {
+            display: inline-block !important;
+            vertical-align: middle;
+            margin: 0 8px;
+        }
+        .goog-te-gadget {
+            font-family: inherit !important;
+            font-size: 12px !important;
+            color: #333 !important;
+        }
+        .goog-te-gadget-simple {
+            background-color: rgba(255,255,255,0.9) !important;
+            border: 1px solid #ddd !important;
+            border-radius: 6px !important;
+            padding: 6px 10px !important;
+            color: #333 !important;
+        }
+        .goog-te-gadget-simple .goog-te-menu-value {
+            color: #333 !important;
+        }
+        .goog-te-gadget-simple .goog-te-menu-value span {
+            color: #333 !important;
+        }
+        .goog-te-banner-frame {
+            display: none !important;
+        }
+        body {
+            top: 0 !important;
+        }
+        .translate-box.loading::after {
+            content: 'EN';
+            color: #666;
+            font-size: 12px;
+            padding: 6px 10px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+    </style>
 </head>
 <body>
     <!-- Status Bar -->
@@ -19,12 +61,16 @@
         </div>
     </div>
 
-    <!-- Header -->
+    <!-- Header with Translator -->
     <header class="header">
         <button class="back-btn" onclick="history.back()">
             <i class="fas fa-arrow-left"></i>
         </button>
         <h1>Email Support</h1>
+        
+        <!-- Google Translator -->
+        <div id="google_translate_element" class="translate-box loading"></div>
+        
         <button class="icon-btn" onclick="toggleTheme()">
             <i class="fas fa-sun"></i>
         </button>
@@ -190,5 +236,8 @@
     </nav>
 
     <script src="support.js"></script>
+    <script src="translator.js"></script>
+    <script src="translator-auto.js"></script>
+
 </body>
 </html>
