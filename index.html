@@ -7,6 +7,57 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="landing.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Translate Styles -->
+    <style>
+        /* Ensure Google Translate widget is visible */
+        .translate-box {
+            display: inline-block !important;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        
+        /* Style the Google Translate dropdown */
+        .goog-te-gadget {
+            font-family: inherit !important;
+            font-size: 14px !important;
+            color: #fff !important;
+        }
+        
+        .goog-te-gadget-simple {
+            background-color: rgba(255,255,255,0.1) !important;
+            border: 1px solid rgba(255,255,255,0.3) !important;
+            border-radius: 6px !important;
+            padding: 8px 12px !important;
+            color: #fff !important;
+        }
+        
+        .goog-te-gadget-simple .goog-te-menu-value {
+            color: #fff !important;
+        }
+        
+        .goog-te-gadget-simple .goog-te-menu-value span {
+            color: #fff !important;
+        }
+        
+        /* Hide the Google Translate banner at the top */
+        .goog-te-banner-frame {
+            display: none !important;
+        }
+        
+        body {
+            top: 0 !important;
+        }
+        
+        /* Loading state */
+        .translate-box.loading::after {
+            content: 'Loading...';
+            color: #fff;
+            font-size: 12px;
+            padding: 8px;
+        }
+    </style>
+    
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -21,7 +72,7 @@
             <span>City Prime Bank</span>
         </div>
 
-        <div id="google_translate_element" class="translate-box"></div>
+        <div id="google_translate_element" class="translate-box loading"></div>
 
         <button class="menu-btn" onclick="toggleMenu()">
             <i class="fas fa-bars"></i>
@@ -357,12 +408,18 @@ function toggleMenu() {
 
 <script>
 function googleTranslateElementInit() {
-  new google.translate.TranslateElement(
-    {
-      pageLanguage: 'en'
-    },
-    'google_translate_element'
-  );
+  new google.translate.TranslateElement({
+    pageLanguage: 'en',
+    includedLanguages: 'en,es,fr,de,it,pt,ru,zh-CN,zh-TW,ja,ko,ar,hi,vi,th,pl,tr,nl,sv,da,no,fi,cs,el,he,id,ms,tl,uk,ro,hu',
+    layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+    autoDisplay: false
+  }, 'google_translate_element');
+  
+  // Remove loading class once initialized
+  var element = document.getElementById('google_translate_element');
+  if (element) {
+    element.classList.remove('loading');
+  }
 }
 </script>
 
