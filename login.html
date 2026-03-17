@@ -13,15 +13,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
-<!-- EmailJS -->
-<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
-
-<script>
-(function(){
-emailjs.init("xlx20WEQxwkisNBcp");
-})();
-</script>
-
 </head>
 
 <body>
@@ -103,17 +94,12 @@ Don't have an account? <a href="register.html">Register</a>
 <div class="loading-spinner"></div>
 <p>Signing in...</p>
 </div>
+
 <script src="firebase-config.js"></script>
 
 <script>
 
-// clear previous OTP session
-sessionStorage.removeItem("loginOTP");
-sessionStorage.removeItem("loginEmail");
-sessionStorage.removeItem("otpVerified");
-
 function togglePassword(){
-
 const passwordInput=document.getElementById('password');
 const toggleBtn=document.querySelector('.toggle-password i');
 
@@ -126,7 +112,6 @@ passwordInput.type='password';
 toggleBtn.classList.remove('fa-eye-slash');
 toggleBtn.classList.add('fa-eye');
 }
-
 }
 
 document.getElementById('loginForm').addEventListener('submit',async(e)=>{
@@ -146,49 +131,28 @@ const user=userCredential.user;
 const userDoc=await db.collection('users').doc(user.uid).get();
 
 if(!userDoc.exists){
-
 document.getElementById('loadingOverlay').classList.add('hidden');
 showToast("User record not found.","error");
 return;
-
 }
 
 const userData=userDoc.data();
 
+// update last login
 await db.collection('users').doc(user.uid).update({
 lastLogin:firebase.firestore.FieldValue.serverTimestamp()
 });
 
 document.getElementById('loadingOverlay').classList.add('hidden');
 
+showToast("Login successful","success");
+
+// redirect
 if(userData.role==="admin"){
-
 window.location.href="admin.html";
-return;
-
+}else{
+window.location.href="dashboard.html"; // change if your page name is different
 }
-
-const otp=Math.floor(100000+Math.random()*900000);
-
-sessionStorage.setItem("loginOTP", otp);
-sessionStorage.setItem("loginEmail", email);
-emailjs.send("service_jinqyga","template_9xua3pk",{
-email:email,
-passcode:otp,
-time:"15 minutes"
-})
-.then(function(){
-console.log("OTP email sent");
-})
-.catch(function(error){
-console.log("Email failed:",error);
-});
-
-showToast("Verification code sent to your email.","success");
-
-setTimeout(()=>{
-window.location.href="otp.html";
-},1000);
 
 }catch(error){
 
@@ -208,6 +172,7 @@ showToast(message,'error');
 });
 
 </script>
+
 <script src="translator-auto.js"></script>
 </body>
 </html>
