@@ -49,6 +49,9 @@
                         <div class="chat-user-status"><span class="status-dot online"></span> Online</div>
                     </div>
                 </div>
+                <button class="delete-chat-btn" onclick="deleteCurrentChat()" title="Delete Chat">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
 
             <div class="chat-messages" id="chatMessages"></div>
@@ -68,17 +71,40 @@
         </div>
     </div>
 
+    <!-- Delete Chat Confirmation Modal -->
+    <div id="deleteChatModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Delete Chat</h3>
+                <button class="close-btn" onclick="closeDeleteModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="delete-confirm-content">
+                <i class="fas fa-exclamation-triangle warning-icon"></i>
+                <p>Are you sure you want to delete this chat?</p>
+                <p class="sub-text">This will delete the conversation for both you and the user. This action cannot be undone.</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteChat()">Delete Chat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="firebase-config.js"></script>
     <script>
         let allChats = [];
         let currentChatId = null;
         let currentChatData = null;
         let unsubscribeMessages = null;
+        let currentUser = null;
 
         auth.onAuthStateChanged((user) => {
             if (!user) {
                 window.location.href = 'login.html';
             } else {
+                currentUser = user;
                 checkAdmin(user.uid);
             }
         });
@@ -109,6 +135,8 @@
                         allChats.push({ id: doc.id, ...doc.data() });
                     });
                     renderChatList();
+                }, (error) => {
+                    console.error('Error loading chats:', error);
                 });
         }
 
@@ -171,6 +199,15 @@
             currentChatId = chatId;
             currentChatData = allChats.find(c => c.id === chatId);
             
+            if (!currentChatData) {
+                const chatDoc = await db.collection('chats').doc(chatId).get();
+                if (!chatDoc.exists) {
+                    alert('Chat not found');
+                    return;
+                }
+                currentChatData = { id: chatDoc.id, ...chatDoc.data() };
+            }
+            
             document.getElementById('chatListSection').classList.add('hidden');
             document.getElementById('chatViewSection').classList.remove('hidden');
             
@@ -209,6 +246,8 @@
                         }
                     });
                     scrollToBottom();
+                }, (error) => {
+                    console.error('Error loading messages:', error);
                 });
         }
 
@@ -221,7 +260,7 @@
             
             let content = '';
             if (message.imageUrl) {
-                content = `<img src="${message.imageUrl}" class="message-image">`;
+                content = `<img src="${message.imageUrl}" class="message-image" onclick="window.open(this.src, '_blank')">`;
             }
             if (message.text) {
                 content += `<p>${escapeHtml(message.text)}</p>`;
@@ -266,7 +305,8 @@
                 
                 await db.collection('chats').doc(currentChatId).update({
                     lastMessage: text,
-                    lastMessageTime: firebase.firestore.FieldValue.serverTimestamp()
+                    lastMessageTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    unreadCount: firebase.firestore.FieldValue.increment(1)
                 });
             } catch (error) {
                 console.error('Error sending message:', error);
@@ -276,6 +316,11 @@
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file || !currentChatId) return;
+            
+            if (file.size > 5 * 1024 * 1024) {
+                alert('File size too large. Maximum size is 5MB.');
+                return;
+            }
             
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -293,13 +338,55 @@
                     
                     await db.collection('chats').doc(currentChatId).update({
                         lastMessage: '📷 Image',
-                        lastMessageTime: firebase.firestore.FieldValue.serverTimestamp()
+                        lastMessageTime: firebase.firestore.FieldValue.serverTimestamp(),
+                        unreadCount: firebase.firestore.FieldValue.increment(1)
                     });
                 } catch (error) {
                     console.error('Error uploading image:', error);
                 }
             };
             reader.readAsDataURL(file);
+        }
+
+        // Delete Chat Functions
+        function deleteCurrentChat() {
+            if (!currentChatId) return;
+            document.getElementById('deleteChatModal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteChatModal').classList.add('hidden');
+        }
+
+        async function confirmDeleteChat() {
+            if (!currentChatId) return;
+            
+            try {
+                // Delete all messages in the chat first
+                const messagesSnapshot = await db.collection('chats')
+                    .doc(currentChatId)
+                    .collection('messages')
+                    .get();
+                
+                const batch = db.batch();
+                
+                messagesSnapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                
+                await batch.commit();
+                
+                // Delete the chat document itself
+                await db.collection('chats').doc(currentChatId).delete();
+                
+                closeDeleteModal();
+                backToChatList();
+                
+                showToast('Chat deleted successfully', 'success');
+            } catch (error) {
+                console.error('Error deleting chat:', error);
+                alert('Failed to delete chat: ' + error.message);
+            }
         }
 
         function escapeHtml(text) {
@@ -312,6 +399,20 @@
             if (!timestamp) return '';
             const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
         }
     </script>
 
@@ -342,6 +443,11 @@
             border: 1px solid var(--border);
             border-radius: 12px;
             cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-item:active {
+            transform: scale(0.98);
         }
 
         .chat-item.unread {
@@ -419,10 +525,30 @@
             cursor: pointer;
         }
 
+        .delete-chat-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.1);
+            border: none;
+            color: #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-left: auto;
+            transition: all 0.2s;
+        }
+
+        .delete-chat-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+
         .chat-user-info {
             display: flex;
             align-items: center;
             gap: 12px;
+            flex: 1;
         }
 
         .chat-user-name {
@@ -479,6 +605,7 @@
             max-width: 200px;
             border-radius: 8px;
             margin-bottom: 8px;
+            cursor: pointer;
         }
 
         .message-time {
@@ -507,11 +634,16 @@
             color: var(--text-muted);
             font-size: 18px;
             cursor: pointer;
+            transition: all 0.2s;
         }
 
         .send-btn {
             background: var(--gradient-blue);
             color: white;
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
         }
 
         .chat-input {
@@ -527,6 +659,142 @@
         .chat-input:focus {
             outline: none;
             border-color: var(--primary);
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 24px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .delete-confirm-content {
+            text-align: center;
+        }
+
+        .warning-icon {
+            font-size: 48px;
+            color: #f59e0b;
+            margin-bottom: 16px;
+        }
+
+        .delete-confirm-content p {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .delete-confirm-content .sub-text {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:active {
+            transform: scale(0.95);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 2000;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateX(-50%) translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .toast-success {
+            border-left: 4px solid #10b981;
+        }
+
+        .toast-success i {
+            color: #10b981;
+        }
+
+        .hidden {
+            display: none !important;
         }
     </style>
 </body>
