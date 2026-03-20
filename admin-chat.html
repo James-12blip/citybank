@@ -99,6 +99,7 @@
         let currentChatData = null;
         let unsubscribeMessages = null;
         let currentUser = null;
+        let unsubscribeChats = null;
 
         auth.onAuthStateChanged((user) => {
             if (!user) {
@@ -110,34 +111,63 @@
         });
 
         async function checkAdmin(uid) {
-            const doc = await db.collection('users').doc(uid).get();
-            if (!doc.exists || doc.data().role !== 'admin') {
-                alert('Access denied');
-                window.location.href = 'dashboard.html';
-                return;
-            }
-            loadChats();
-            
-            // Check for user filter in URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const userFilter = urlParams.get('user');
-            if (userFilter) {
-                setTimeout(() => openChatWithUser(userFilter), 500);
+            try {
+                const doc = await db.collection('users').doc(uid).get();
+                if (!doc.exists || doc.data().role !== 'admin') {
+                    alert('Access denied');
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
+                loadChats();
+                
+                // Check for user filter in URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const userFilter = urlParams.get('user');
+                if (userFilter) {
+                    setTimeout(() => openChatWithUser(userFilter), 1000);
+                }
+            } catch (error) {
+                console.error('Error checking admin:', error);
+                document.getElementById('chatsList').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Error loading. Please refresh.</span>
+                    </div>
+                `;
             }
         }
 
         function loadChats() {
-            db.collection('chats')
-                .orderBy('lastMessageTime', 'desc')
-                .onSnapshot((snapshot) => {
-                    allChats = [];
-                    snapshot.forEach(doc => {
-                        allChats.push({ id: doc.id, ...doc.data() });
+            // Unsubscribe from previous listener if exists
+            if (unsubscribeChats) unsubscribeChats();
+            
+            try {
+                unsubscribeChats = db.collection('chats')
+                    .orderBy('lastMessageTime', 'desc')
+                    .onSnapshot((snapshot) => {
+                        allChats = [];
+                        snapshot.forEach(doc => {
+                            allChats.push({ id: doc.id, ...doc.data() });
+                        });
+                        renderChatList();
+                    }, (error) => {
+                        console.error('Error loading chats:', error);
+                        document.getElementById('chatsList').innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <span>Error loading chats</span>
+                            </div>
+                        `;
                     });
-                    renderChatList();
-                }, (error) => {
-                    console.error('Error loading chats:', error);
-                });
+            } catch (error) {
+                console.error('Error setting up chat listener:', error);
+                document.getElementById('chatsList').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Error loading chats</span>
+                    </div>
+                `;
+            }
         }
 
         function renderChatList() {
@@ -156,6 +186,7 @@
             container.innerHTML = allChats.map(chat => {
                 const initials = chat.userName ? chat.userName.split(' ').map(n => n[0]).join('') : '?';
                 const unread = chat.unreadCount > 0 ? `<span class="unread-badge">${chat.unreadCount}</span>` : '';
+                const time = chat.lastMessageTime ? formatTime(chat.lastMessageTime) : '';
                 
                 return `
                     <div class="chat-item ${chat.unreadCount > 0 ? 'unread' : ''}" onclick="openChat('${chat.id}')">
@@ -165,7 +196,7 @@
                             <div class="chat-preview">${chat.lastMessage || 'No messages'}</div>
                         </div>
                         <div class="chat-meta">
-                            <div class="chat-time">${chat.lastMessageTime ? formatTime(chat.lastMessageTime) : ''}</div>
+                            <div class="chat-time">${time}</div>
                             ${unread}
                         </div>
                     </div>
@@ -179,18 +210,26 @@
                 openChat(chat.id);
             } else {
                 // Create new chat
-                const userDoc = await db.collection('users').doc(userId).get();
-                if (userDoc.exists) {
-                    const userData = userDoc.data();
-                    const chatRef = await db.collection('chats').add({
-                        userId: userId,
-                        userName: `${userData.firstName} ${userData.lastName}`,
-                        userEmail: userData.email,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        lastMessageTime: firebase.firestore.FieldValue.serverTimestamp(),
-                        unreadCount: 0
-                    });
-                    setTimeout(() => openChat(chatRef.id), 500);
+                try {
+                    const userDoc = await db.collection('users').doc(userId).get();
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        const chatRef = await db.collection('chats').add({
+                            userId: userId,
+                            userName: `${userData.firstName || ''} ${userData.lastName || ''}`,
+                            userEmail: userData.email || '',
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            lastMessageTime: firebase.firestore.FieldValue.serverTimestamp(),
+                            lastMessage: 'No messages',
+                            unreadCount: 0
+                        });
+                        setTimeout(() => openChat(chatRef.id), 500);
+                    } else {
+                        alert('User not found');
+                    }
+                } catch (error) {
+                    console.error('Error creating chat:', error);
+                    alert('Failed to create chat');
                 }
             }
         }
@@ -200,23 +239,32 @@
             currentChatData = allChats.find(c => c.id === chatId);
             
             if (!currentChatData) {
-                const chatDoc = await db.collection('chats').doc(chatId).get();
-                if (!chatDoc.exists) {
-                    alert('Chat not found');
+                try {
+                    const chatDoc = await db.collection('chats').doc(chatId).get();
+                    if (!chatDoc.exists) {
+                        alert('Chat not found');
+                        return;
+                    }
+                    currentChatData = { id: chatDoc.id, ...chatDoc.data() };
+                } catch (error) {
+                    console.error('Error fetching chat:', error);
                     return;
                 }
-                currentChatData = { id: chatDoc.id, ...chatDoc.data() };
             }
             
             document.getElementById('chatListSection').classList.add('hidden');
             document.getElementById('chatViewSection').classList.remove('hidden');
             
-            document.getElementById('chatUserAvatar').textContent = 
-                currentChatData.userName ? currentChatData.userName.split(' ').map(n => n[0]).join('') : '?';
+            const initials = currentChatData.userName ? currentChatData.userName.split(' ').map(n => n[0]).join('') : '?';
+            document.getElementById('chatUserAvatar').textContent = initials;
             document.getElementById('chatUserName').textContent = currentChatData.userName || 'Unknown';
             
             // Reset unread count
-            await db.collection('chats').doc(chatId).update({ unreadCount: 0 });
+            try {
+                await db.collection('chats').doc(chatId).update({ unreadCount: 0 });
+            } catch (error) {
+                console.error('Error resetting unread count:', error);
+            }
             
             loadMessages();
         }
@@ -235,24 +283,30 @@
             const container = document.getElementById('chatMessages');
             container.innerHTML = '';
             
-            unsubscribeMessages = db.collection('chats')
-                .doc(currentChatId)
-                .collection('messages')
-                .orderBy('timestamp', 'asc')
-                .onSnapshot((snapshot) => {
-                    snapshot.docChanges().forEach((change) => {
-                        if (change.type === 'added') {
-                            displayMessage(change.doc.data());
-                        }
+            try {
+                unsubscribeMessages = db.collection('chats')
+                    .doc(currentChatId)
+                    .collection('messages')
+                    .orderBy('timestamp', 'asc')
+                    .onSnapshot((snapshot) => {
+                        snapshot.docChanges().forEach((change) => {
+                            if (change.type === 'added') {
+                                displayMessage(change.doc.data());
+                            }
+                        });
+                        scrollToBottom();
+                    }, (error) => {
+                        console.error('Error loading messages:', error);
                     });
-                    scrollToBottom();
-                }, (error) => {
-                    console.error('Error loading messages:', error);
-                });
+            } catch (error) {
+                console.error('Error setting up messages listener:', error);
+            }
         }
 
         function displayMessage(message) {
             const container = document.getElementById('chatMessages');
+            if (!container) return;
+            
             const isAdmin = message.senderId === currentUser.uid;
             
             const div = document.createElement('div');
@@ -266,10 +320,12 @@
                 content += `<p>${escapeHtml(message.text)}</p>`;
             }
             
+            const time = message.timestamp ? formatTime(message.timestamp) : '';
+            
             div.innerHTML = `
                 <div class="message-bubble">
                     ${content}
-                    <span class="message-time">${formatTime(message.timestamp)}</span>
+                    <span class="message-time">${time}</span>
                 </div>
             `;
             
@@ -278,7 +334,9 @@
 
         function scrollToBottom() {
             const container = document.getElementById('chatMessages');
-            container.scrollTop = container.scrollHeight;
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
         }
 
         document.getElementById('chatForm').addEventListener('submit', async (e) => {
@@ -310,6 +368,7 @@
                 });
             } catch (error) {
                 console.error('Error sending message:', error);
+                alert('Failed to send message');
             }
         });
 
@@ -343,6 +402,7 @@
                     });
                 } catch (error) {
                     console.error('Error uploading image:', error);
+                    alert('Failed to upload image');
                 }
             };
             reader.readAsDataURL(file);
@@ -390,6 +450,7 @@
         }
 
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -397,8 +458,12 @@
 
         function formatTime(timestamp) {
             if (!timestamp) return '';
-            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            try {
+                const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return '';
+            }
         }
 
         function showToast(message, type) {
